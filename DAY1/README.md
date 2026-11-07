@@ -1,4 +1,4 @@
-# Day 1: Introduction to Verilog RTL Design and Synthesis
+**# Day 1: Introduction to Verilog RTL Design and Synthesis**
 
 ## Objective
 
@@ -78,7 +78,7 @@ Or, in a single line:
 
 ---
 
-2. Lab 1: Repository Setup and RTL Simulation
+**2. Lab 1: Repository Setup and RTL Simulation**
         Clone the Workshop Repository
 ```
 
@@ -115,7 +115,37 @@ gtkwave tb_good_mux.vcd
 ```
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/741faeb2-2461-49f9-9cfe-c6060e8db1dc" />
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/eec9a7af-0b30-4f6f-92ee-399a1f84fba5" />
+The 2:1 multiplexer selects one of two inputs based on the select signal.
+
+When sel = 0, output y follows input i0.
+When sel = 1, output y follows input i1.
+
+Simulation tells us whether the RTL behaves correctly. Synthesis is the next step: it takes that verified RTL and turns it into real hardware building blocks. The diagram below shows both halves of the flow side by side.
+
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/ebc896b5-4bca-4f8b-acf9-db6d8b9b87ee" />
+**Complete flow diagram**
+ ┌─────────────────────────── SIMULATION (does it work?) ───────────────────────────┐
+ │                                                                                  │
+ │   RTL Design (.v)  ─┐                                                            │
+ │                     ├──▶  Icarus Verilog  ──▶  a.out  ──▶  VCD file  ──▶ GTKWave │
+ │   Testbench (.v)   ─┘      (iverilog)        (vvp)       (dumpfile)   (waveforms)│
+ │                                                                                  │
+ └──────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                       RTL verified, so we move on to synthesis
+                                         ▼
+ ┌─────────────────────────── SYNTHESIS (what hardware is it?) ────────────────────┐
+ │                                                                                  │
+ │   RTL Design (.v)      ──▶  read_verilog  ─┐                                     │
+ │                                            ├──▶  Yosys  ──▶ write_verilog ──▶ Netlist│
+ │   Liberty file (.lib)  ──▶  read_liberty   ─┘   (synth + abc)                    │
+ │                                                                                  │
+ └──────────────────────────────────────────────────────────────────────────────────┘
+
+
+**3. Introduction to Yosys and Logic Synthesis**
+
+
 
 
 
