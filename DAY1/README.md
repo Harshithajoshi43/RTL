@@ -77,3 +77,79 @@ Or, in a single line:
 - Synthesis with Yosys and SKY130 then carries the verified RTL forward into a gate-level netlist.
 
 ---
+
+2. Lab 1: Repository Setup and RTL Simulation
+        Clone the Workshop Repository
+```
+
+git clone https://github.com/kunalg123/sky130RTLDesignAndSynthesisWorkshop.git
+cd sky130RTLDesignAndSynthesisWorkshop
+ls -la
+
+```
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/d389ba11-ae04-40ff-88c9-b84a3ac03be7" /> 
+        View all the files and directories
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/565c1d53-141e-4ada-a075-bdb8f4871e8b" />
+
+Simulate the 2:1 Multiplexer
+Design file: good_mux.v
+Testbench file: tb_good_mux.v
+
+Compile the design and testbench:
+
+```
+iverilog good_mux.v tb_good_mux.v
+```
+A successful compilation generates the default executable a.out.
+
+Execute the simulation:
+```
+./a.out
+```
+The testbench generates tb_good_mux.vcd 
+Open the waveform:
+```
+gtkwave tb_good_mux.vcd
+```
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/741faeb2-2461-49f9-9cfe-c6060e8db1dc" />
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/eec9a7af-0b30-4f6f-92ee-399a1f84fba5" />
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/ebc896b5-4bca-4f8b-acf9-db6d8b9b87ee" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
