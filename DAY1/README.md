@@ -163,14 +163,6 @@ Area of the cell
 Power characteristics
 Pin details (direction, capacitance, function)'
 
-Why the Same Testbench Is Reused
-
-Simulation and verification are not two different things
-Simulation is the activity of running a design over time. Verification is the goal: proving the design does what the specification says. Simulation is the main tool for verification, so the same testbench serves both purposes. It is also reused at a second stage, after synthesis.
-The simulation we ran earlier was done on the RTL. After synthesis, we simulate the gate-level netlist with the same testbench to confirm that synthesis did not change the behavior.
-Why it works: the testbench only sees the ports
-A testbench never looks inside the design. It drives the input ports and observes the output ports of the DUT, and nothing else. Yosys preserves the top module’s name and port list, so the netlist is a drop-in replacement for the RTL. From the testbench’s point of view, the two files are indistinguishable:
-
 What are Synthesis Constraints?
 
 Constraints steer the synthesis tool toward the requirements the design must meet. For example, timing constraints describe the clocks and the assumed input and output timing. Beyond that, the chosen library and cell selections shape the final area, power and delay. Constraints are how you tell the tool what matters most.
@@ -204,11 +196,43 @@ Step 4: Map to SKY130 cells
 ```abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
 
 This is the technology-mapping stage. ABC takes the generic logic, optimizes it, and rebuilds it using real cells from the Liberty file. After this step, the design is expressed in SKY130 standard cells.
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/baae7e2e-0de6-412d-81d9-5166b1ed8c0c" />
 
 Step 5: Look at the result
 ```show```
 This draws the synthesized logic as a graph, so you can see which cells were chosen and how they are connected. For a 2-to-1 mux, you should see the select line steering between the two data inputs through a mux cell or an equivalent small group of gates.
 
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/f698a241-e85a-467c-8ed2-e35c1ce29b1d" />
+
+Step 6: Generate the Netlist
+```write_verilog -noattr good_mux_netlist.v```
+The command writes the synthesized design to a Verilog netlist file.
+
+To inspect it in GVim, if installed:
+
+```!gvim good_mux_netlist.v```
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/efae5a37-6140-44b0-bb43-ee1abed66226" />
+
+**4. Verification of synthesis**
+
+What Is Verification?
+
+Verification is the process of confirming that a design behaves according to its specification. It answers one question: does this circuit do what it was meant to do? In practice, you apply known inputs, observe the outputs, and check them against the expected behavior.
+Verification happens at more than one stage of the flow:
+RTL verification checks that the behavioral code matches the specification. This was our first simulation.
+Gate-level verification checks that the synthesized netlist still matches that behavior. This is the stage shown in the diagram above.
+The second check matters because synthesis rewrites the design. The netlist should do exactly what the RTL did, and verification is how we confirm it instead of assuming it.
+
+<img width="1362" height="846" alt="image" src="https://github.com/user-attachments/assets/955e8f02-fa01-4920-8ee3-55c70ced6c2a" />
+
+Why the Same Testbench Is Reused
+
+Simulation and verification are not two different things
+Simulation is the activity of running a design over time. Verification is the goal: proving the design does what the specification says. Simulation is the main tool for verification, so the same testbench serves both purposes. It is also reused at a second stage, after synthesis.
+The simulation we ran earlier was done on the RTL. After synthesis, we simulate the gate-level netlist with the same testbench to confirm that synthesis did not change the behavior.
+Why it works: the testbench only sees the ports
+A testbench never looks inside the design. It drives the input ports and observes the output ports of the DUT, and nothing else. Yosys preserves the top module’s name and port list, so the netlist is a drop-in replacement for the RTL. From the testbench’s point of view, the two files are indistinguishable:
 
 
 
