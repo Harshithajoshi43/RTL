@@ -176,41 +176,55 @@ This opens the interactive Yosys shell. Everything below is typed at its prompt.
 
 
 Step 1: Load the standard-cell library
-```read_liberty -lib ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+```
+read_liberty -lib ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+```
 
 This introduces Yosys to the SKY130 cells (the typical-corner, 25 °C, 1.8 V characterization). The -lib option loads each cell as a black box, meaning Yosys learns the cell names and pins without needing their internal details.
 
 Step 2: Load the RTL design
-```read_verilog good_mux.v```
+```
+read_verilog good_mux.v
+```
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/eeff3193-e051-4b49-8f3d-09b12bd8f027" />
 
 Yosys parses the Verilog source and brings the good_mux module into its internal representation.
 
 Step 3: Run generic synthesis
-```synth -top good_mux```
+```
+synth -top good_mux
+```
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/64fccec1-9301-4577-9c2e-468ee7ec2570" />
 
 Here -top good_mux tells Yosys which module is the top of the design. The command elaborates the design and applies generic optimizations, producing logic built from Yosys’s internal gate primitives, not yet from SKY130 cells.
 
 Step 4: Map to SKY130 cells
-```abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+```
+abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+```
 
 This is the technology-mapping stage. ABC takes the generic logic, optimizes it, and rebuilds it using real cells from the Liberty file. After this step, the design is expressed in SKY130 standard cells.
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/baae7e2e-0de6-412d-81d9-5166b1ed8c0c" />
 
 Step 5: Look at the result
-```show```
+```
+show
+```
 This draws the synthesized logic as a graph, so you can see which cells were chosen and how they are connected. For a 2-to-1 mux, you should see the select line steering between the two data inputs through a mux cell or an equivalent small group of gates.
 
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/f698a241-e85a-467c-8ed2-e35c1ce29b1d" />
 
 Step 6: Generate the Netlist
-```write_verilog -noattr good_mux_netlist.v```
+```
+write_verilog -noattr good_mux_netlist.v
+```
 The command writes the synthesized design to a Verilog netlist file.
 
 To inspect it in GVim, if installed:
 
-```!gvim good_mux_netlist.v```
+```
+!gvim good_mux_netlist.v
+```
 
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/efae5a37-6140-44b0-bb43-ee1abed66226" />
 
