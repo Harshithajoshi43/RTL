@@ -124,27 +124,90 @@ Simulation tells us whether the RTL behaves correctly. Synthesis is the next ste
 
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/ebc896b5-4bca-4f8b-acf9-db6d8b9b87ee" />
 **Complete flow diagram**
- ┌─────────────────────────── SIMULATION (does it work?) ───────────────────────────┐
- │                                                                                  │
- │   RTL Design (.v)  ─┐                                                            │
- │                     ├──▶  Icarus Verilog  ──▶  a.out  ──▶  VCD file  ──▶ GTKWave │
- │   Testbench (.v)   ─┘      (iverilog)        (vvp)       (dumpfile)   (waveforms)│
- │                                                                                  │
- └──────────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                       RTL verified, so we move on to synthesis
-                                         ▼
- ┌─────────────────────────── SYNTHESIS (what hardware is it?) ────────────────────┐
- │                                                                                  │
- │   RTL Design (.v)      ──▶  read_verilog  ─┐                                     │
- │                                            ├──▶  Yosys  ──▶ write_verilog ──▶ Netlist│
- │   Liberty file (.lib)  ──▶  read_liberty   ─┘   (synth + abc)                    │
- │                                                                                  │
- └──────────────────────────────────────────────────────────────────────────────────┘
-
+<img width="1383" height="886" alt="image" src="https://github.com/user-attachments/assets/39cb9bfd-2e64-47b1-9fcb-44d0ddf14b93" />
+                                          
 
 **3. Introduction to Yosys and Logic Synthesis**
 
+What is a Synthesizer?
+
+A synthesizer converts a synthesizable RTL description into a logic-level representation and can then map that logic onto cells from a chosen standard-cell library. It is the bridge between “what the circuit does” and “which physical gates implement it.”
+
+In this workshop, Yosys plays that role.
+Yosys is an open-source tool used for Verilog synthesis.
+
+Yosys performs operations such as:
+
+Reading Verilog RTL code
+Analyzing and optimizing the design
+Converting RTL into a logic representation
+Technology mapping
+Generating a gate-level netlist
+
+What is Logic Synthesis?
+
+Logic synthesis translates a behavioral or RTL description into a logic-level implementation. It unfolds in four stages:
+
+Read and elaborate the RTL, resolving the design structure and hierarchy.
+Optimize the logic, simplifying it to reduce redundancy.
+Map the optimized logic to the standard cells that are available.
+Generate a gate-level netlist describing the cells and their connections.
+ RTL ──▶ Elaboration ──▶ Optimization ──▶ Technology Mapping ──▶ Gate-level Netlist
+
+ What is a .lib File?
+
+A Liberty (.lib) file is the library’s datasheet, written in a format tools can read. For every standard cell, it records:
+
+Timing information (delays, transition behavior)
+Area of the cell
+Power characteristics
+Pin details (direction, capacitance, function)'
+
+Why the Same Testbench Is Reused
+
+Simulation and verification are not two different things
+Simulation is the activity of running a design over time. Verification is the goal: proving the design does what the specification says. Simulation is the main tool for verification, so the same testbench serves both purposes. It is also reused at a second stage, after synthesis.
+The simulation we ran earlier was done on the RTL. After synthesis, we simulate the gate-level netlist with the same testbench to confirm that synthesis did not change the behavior.
+Why it works: the testbench only sees the ports
+A testbench never looks inside the design. It drives the input ports and observes the output ports of the DUT, and nothing else. Yosys preserves the top module’s name and port list, so the netlist is a drop-in replacement for the RTL. From the testbench’s point of view, the two files are indistinguishable:
+
+What are Synthesis Constraints?
+
+Constraints steer the synthesis tool toward the requirements the design must meet. For example, timing constraints describe the clocks and the assumed input and output timing. Beyond that, the chosen library and cell selections shape the final area, power and delay. Constraints are how you tell the tool what matters most.
+
+Launching Yosys
+```
+yosys
+```
+This opens the interactive Yosys shell. Everything below is typed at its prompt.
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/e790f013-6d61-49e1-a39f-c5cb10e1d3c8" />
+
+
+Step 1: Load the standard-cell library
+```read_liberty -lib ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+
+This introduces Yosys to the SKY130 cells (the typical-corner, 25 °C, 1.8 V characterization). The -lib option loads each cell as a black box, meaning Yosys learns the cell names and pins without needing their internal details.
+
+Step 2: Load the RTL design
+```read_verilog good_mux.v```
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/eeff3193-e051-4b49-8f3d-09b12bd8f027" />
+
+Yosys parses the Verilog source and brings the good_mux module into its internal representation.
+
+Step 3: Run generic synthesis
+```synth -top good_mux```
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/64fccec1-9301-4577-9c2e-468ee7ec2570" />
+
+Here -top good_mux tells Yosys which module is the top of the design. The command elaborates the design and applies generic optimizations, producing logic built from Yosys’s internal gate primitives, not yet from SKY130 cells.
+
+Step 4: Map to SKY130 cells
+```abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+
+This is the technology-mapping stage. ABC takes the generic logic, optimizes it, and rebuilds it using real cells from the Liberty file. After this step, the design is expressed in SKY130 standard cells.
+
+Step 5: Look at the result
+```show```
+This draws the synthesized logic as a graph, so you can see which cells were chosen and how they are connected. For a 2-to-1 mux, you should see the select line steering between the two data inputs through a mux cell or an equivalent small group of gates.
 
 
 
