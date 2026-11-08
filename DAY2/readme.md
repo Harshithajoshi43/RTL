@@ -47,6 +47,11 @@ These conditions affect the performance and timing of standard cells.
 
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/a2140b8a-1bf6-4a20-a346-8f25e665ffd1" />
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/b6de1129-ba90-4a51-8a18-6eed6c32787a" />
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/b5a4d44e-4c26-4446-afa3-3668989ec220" />
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/2b2984aa-8041-4be5-a3d2-7e8a50f8c6c8" />
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/fb292349-1213-4ad7-8e0c-1b6bfe88b90d" />
+
 
 
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/7130d8bb-addf-4190-8e0e-306d18f43587" />
