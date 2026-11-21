@@ -1,4 +1,4 @@
-**Introduction to Logic Optimizations**
+### Introduction to Logic Optimizations 
 # Logic Optimization
 
 Logic optimization is the process of improving a digital circuit's logic structure to achieve better **area, power consumption, performance (timing), and efficiency**, while preserving the original functionality.
