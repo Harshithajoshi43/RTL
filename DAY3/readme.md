@@ -1121,18 +1121,134 @@ All five modules are verified using the same asynchronous stimulus pattern:
 
 ---
 
+## Unused State / Flip-Flop Optimization with Yosys: `counter_opt`
+## counter_opt
+
+This repository demonstrates how **Yosys** eliminates unused state registers in a 3-bit up-counter when only the Least Significant Bit (`count[0]`) is connected to the primary output `q`, reducing a 3-flip-flop counter down to a single toggling flip-flop mapped to the **SkyWater 130nm (`sky130`)** standard cell library.
+
+---
+
+### Verilog RTL Code
+
+```verilog
+module counter_opt (
+  input  clk,
+  input  reset,
+  output q
+);
+  reg [2:0] count;
+  assign q = count[0];
+
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+      count <= 3'b000;
+    else
+      count <= count + 1;
+  end
+endmodule
+```
+
+### How It Works
+* **RTL Description:** `count` is declared as a 3-bit register (`count[2:0]`) that increments by `1` on every rising edge of `clk` (`000 -> 001 -> 010 -> 011 -> ...`) and resets asynchronously to `3'b000` when `reset = 1`.
+* **Why Only 1 Bit Matters:** Look at the binary counting sequence for `count[2:0]`:
+
+| Clock Cycle | `count[2]` | `count[1]` | `count[0]` (`q`) |
+| :---: | :---: | :---: | :---: |
+| Reset | 0 | 0 | **0** |
+| 1 | 0 | 0 | **1** |
+| 2 | 0 | 1 | **0** |
+| 3 | 0 | 1 | **1** |
+| 4 | 1 | 0 | **0** |
+
+* Because `assign q = count[0];` only observes the LSB (`count[0]`), and `count[0]` toggles (`0 -> 1 -> 0 -> 1`) on every clock cycle independently of `count[1]` and `count[2]`, **the upper two bits (`count[2:1]`) never affect the output `q`**.
+
+---
+
+### Synthesized Netlist (`sky130`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/fb5ef201-3ba5-47cb-865e-5ceafd2a9990" />
 
 
+### Netlist & Schematic Breakdown
+* **2 Flip-Flops Eliminated (`count[2]` and `count[1]` Removed):** Yosys traces backwards from output `q` (`count[0]`) and sees that `count[1]` and `count[2]` have zero influence on `q`. Instead of building 3 flip-flops and a 3-bit adder, Yosys deletes the upper two registers completely (leaving `2:1 - 1:0` -> `1:0 - 2:1` as an unconnected wire bus in the schematic).
+* **Single Toggling Flip-Flop (`$89` -> `count[0]`):** Mapped to `sky130_fd_sc_hd__dfrtp_1` (positive-edge D flip-flop with active-low asynchronous reset `RESET_B`).
+* **Feedback Inverter (`$130`):** To make `count[0]` toggle every clock cycle ($Q_{\text{next}} = \overline{Q}$), Yosys routes bit `0:0` of `count` through an inverter (`sky130_fd_sc_hd__clkinv_1`) and loops its output back into the `D` pin of flip-flop `$89`.
+* **Reset Polarity Inverter (`$131`):** Converts the active-high `reset` port into the active-low `RESET_B` signal required by `sky130_fd_sc_hd__dfrtp_1`.
+* **Primary Output (`q`):** Driven directly by bit `0:0` of `count`.
+
+### Full State Preservation with Yosys: `counter_opt` (`count[2:0] == 3'b100`)
+
+This repository demonstrates how **Yosys** preserves all state registers and synthesizes full next-state incrementer logic when the output `q` depends on every bit of a 3-bit counter (`count[2:0] == 3'b100`), mapping the design to the **SkyWater 130nm (`sky130`)** standard cell library.
+
+---
+
+### Verilog RTL Code
+
+```verilog
+module counter_opt (
+  input  clk,
+  input  reset,
+  output q
+);
+  reg [2:0] count;
+  assign q = (count[2:0] == 3'b100);
+
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+      count <= 3'b000;
+    else
+      count <= count + 1;
+  end
+endmodule
+```
+
+### How It Works
+* **RTL Description:** `count` is a 3-bit synchronous up-counter (`000 -> 001 -> 010 -> ... -> 111`) with an asynchronous active-high `reset`.
+* **Why All 3 Flip-Flops Are Kept:** Unlike the earlier `assign q = count[0]` version (where `q` only observed the LSB), `q` now compares all three bits (`count[2:0] == 3'b100`), which expands to the Boolean equation:
+  $$q = \text{count}[2] \cdot \overline{\text{count}[1]} \cdot \overline{\text{count}[0]}$$
+* Because `count[2]`, `count[1]`, and `count[0]` all directly determine `q`, Yosys cannot prune any registers and must synthesize all three flip-flops along with the combinational logic required to compute `count + 1`.
+
+---
+
+### Synthesized Netlist (`sky130`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/39aa39bd-e05c-4f39-bbd1-919397eaad62" />
 
 
+### Netlist & Schematic Breakdown
 
+#### 1. Three State Flip-Flops Preserved (`sky130_fd_sc_hd__dfrtp_1`)
+* **`$106` (`count[0]`):** Positive-edge D flip-flop storing the LSB (`0:0`).
+* **`$104` (`count[1]`):** Positive-edge D flip-flop storing the middle bit (`1:1`).
+* **`$105` (`count[2]`):** Positive-edge D flip-flop storing the MSB (`2:2`).
+* **Reset Inverters (`$161`, `$156`, `$162`):** Three `sky130_fd_sc_hd__clkinv_1` inverters convert active-high `reset` into the active-low `RESET_B` required by each flip-flop.
 
+#### 2. Output Comparator Gate (`$157` -> `q`)
+* **`sky130_fd_sc_hd__nor3b_1` (`$157`):** Computes $Y = \overline{A + B + \overline{C\_N}} = \overline{A} \cdot \overline{B} \cdot C\_N$:
+  * Pin `A` <- `count[0]` (`0:0 - 0:0`)
+  * Pin `B` <- `count[1]` (`1:1 - 0:0`)
+  * Pin `C_N` <- `count[2]` (`2:2 - 0:0`)
+  * Pin `Y` -> Output port `q` (high only when `count[2] = 1`, `count[1] = 0`, and `count[0] = 0`, i.e., `3'b100`).
 
+#### 3. 3-Bit Incrementer (`count + 1`) Feedback Logic
+* **Next `count[0]` (`$155`):** `sky130_fd_sc_hd__clkinv_1` inverts `count[0]` ($\text{count}[0]_{\text{next}} = \overline{\text{count}[0]}$) and feeds `$106.D`.
+* **Next `count[1]` (`$159`):** `sky130_fd_sc_hd__xor2_1` computes $\text{count}[1] \oplus \text{count}[0]$ and feeds `$104.D`.
+* **Next `count[2]` (`$158` & `$160`):** `sky130_fd_sc_hd__nand2_1` (`$158`) and `sky130_fd_sc_hd__xnor2_1` (`$160`) compute $\text{count}[2] \oplus (\text{count}[1] \cdot \text{count}[0])$ and feed `$105.D`.
 
+---
 
+### Comparison: Unused State Pruning vs. Full State Preservation
 
+| Feature | `assign q = count[0];` | `assign q = (count[2:0] == 3'b100);` |
+| :--- | :--- | :--- |
+| **Bits Affecting Output** | Only LSB (`count[0]`) | All 3 bits (`count[2:0]`) |
+| **Flip-Flops Synthesized** | **1** (`count[0]` only; `count[2:1]` pruned) | **3** (`count[0]`, `count[1]`, `count[2]` all kept) |
+| **Output Logic** | Direct wire from `count[0]` | `sky130_fd_sc_hd__nor3b_1` ($\text{count}[2] \cdot \overline{\text{count}[1]} \cdot \overline{\text{count}[0]}$) |
+| **Next-State Logic** | 1 inverter (`~count[0]`) | Full 3-bit incrementer (`clkinv_1`, `xor2_1`, `nand2_1`, `xnor2_1`) |
 
-
+---
 
 
 
