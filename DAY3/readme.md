@@ -144,8 +144,8 @@ This experiment demonstrates a basic example of combinational logic optimization
 
 During synthesis, the simplified logic is mapped to a two-input AND standard cell from the SkyWater SKY130 High-Density library. The generated netlist provides a structural representation of the implementation, including the AND gate, buffers, and signal interconnections.
 
-**Similar examples :
-**
+## Similar examples :
+
 opt_check2
 
 A multiplexer with one input tied to logic 1 simplifies to an OR gate, depending on the select and input connections.
