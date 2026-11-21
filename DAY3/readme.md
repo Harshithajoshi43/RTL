@@ -144,6 +144,45 @@ This experiment demonstrates a basic example of combinational logic optimization
 
 During synthesis, the simplified logic is mapped to a two-input AND standard cell from the SkyWater SKY130 High-Density library. The generated netlist provides a structural representation of the implementation, including the AND gate, buffers, and signal interconnections.
 
+Similar examples
+opt_check2
+A multiplexer with one input tied to logic 1 simplifies to an OR gate, depending on the select and input connections.
+```
+module opt_check2 (input a , input b , output y);
+	assign y = a?1:b;
+endmodule
+```
+The ternary operator `a ? 1 : b` describes a 2-to-1 multiplexer:
+* When `a = 1`, the output `y` is driven to `1`.
+* When `a = 0`, the output `y` follows `b`.
+
+### Truth Table
+
+| `a` | `b` | `y` (`a ? 1 : b`) |
+| :-: | :-: | :-: |
+| 0 | 0 | **0** |
+| 0 | 1 | **1** |
+| 1 | 0 | **1** |
+| 1 | 1 | **1** |
+
+From the truth table, the expression simplifies directly to a **2-input OR gate**:
+$$y = a + b$$
+---
+
+## Synthesized Netlist (`sky130`)
+
+### Schematic Breakdown
+* **Logic Simplification:** During synthesis, Yosys detects that a multiplexer with a constant `1` on its `true` branch is functionally identical to an OR gate, eliminating unnecessary hardware.
+* **Standard Cell Mapping:** The simplified logic is mapped to the `sky130_fd_sc_hd__or2_0` cell (2-input OR gate from the SkyWater 130nm High-Density library).
+* **Ports & Buffers (`BUF`):** Inputs `a` and `b` feed into pins `A` and `B` of the OR gate, and output `X` drives port `y`. The `BUF` blocks represent internal Yosys net-connection buffers generated for schematic visualization.
+
+---
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/01c3a3ff-859e-4213-ae93-acaa26933a62" />
+opt_check3
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/83a78857-e512-4a6f-a1c2-171232cfe806" />
+opt_check4
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/eb3aa250-f5f1-4584-8c76-f67a2170f391" />
+
 
 
 ## 2. Sequential Logic Optimization
