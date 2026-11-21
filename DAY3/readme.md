@@ -59,6 +59,78 @@ Y = A AND (B OR C)
 This can reduce hardware complexity by sharing common logic.
 
 ---
+This is a small example of combinational logic optimization, and the image you shared is a synthesis-generated gate-level netlist (or synthesized logic view) showing how Yosys mapped your Verilog into a standard-cell gate.
+The objective is to understand how a behavioral Verilog description is translated into a gate-level implementation and how synthesis tools optimize logic while preserving the original functionality.
+
+```read_liberty -lib ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+```read_verilog opt_check.v```
+```synth -top opt_check```
+```opt_clean -purge```
+```abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+```show```
+The opt_clean -purge command removes unused wires and cells, including certain unused internal signals and objects.
+
+
+RTL Design
+Verilog Code :
+module opt_check (
+    input a,
+    input b,
+    output y
+);
+
+   assign y = a ? b : 0;
+
+endmodule
+
+Description
+
+The module opt_check consists of two inputs, a and b, and one output, y.
+
+The output is assigned using the ternary conditional operator:
+
+a ? b : 0
+
+The ternary operator evaluates a condition and selects one of two values depending on whether the condition is true or false.
+
+Syntax:
+
+condition ? expression_if_true : expression_if_false
+
+In this design:
+
+a is the condition.
+
+b is selected when a is logic HIGH (1).
+
+0 is selected when a is logic LOW (0).
+
+## 3. Functional Analysis
+
+The behavior of the circuit can be described using the following truth table:
+
+| Input `a` | Input `b` | Output `y` | Explanation |
+|:---------:|:---------:|:-----------:|-------------|
+| 0 | 0 | 0 | Condition is false; output is 0 |
+| 0 | 1 | 0 | Condition is false; output is 0 |
+| 1 | 0 | 0 | Condition is true; output follows `b` (0) |
+| 1 | 1 | 1 | Condition is true; output follows `b` (1) |
+
+The output becomes HIGH only when both `a` and `b` are HIGH. This behavior is equivalent to a two-input AND gate.
+
+The RTL is synthesized using Yosys. Synthesis converts the behavioral Verilog description into a structural representation of logic and maps the logic to cells available in the target technology library.
+
+The target library used in the displayed netlist is the SkyWater SKY130 High-Density standard-cell library (sky130_fd_sc_hd).
+
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/c288a1ef-2345-4b8a-8f68-0a9f72881331" />
+This circuit is a combinational circuit because its output is determined entirely by the current values of its inputs.
+
+This experiment demonstrates a basic example of combinational logic optimization using Verilog and Yosys. The conditional expression a ? b : 0 is simplified through Boolean algebra to the equivalent expression a & b.
+
+During synthesis, the simplified logic is mapped to a two-input AND standard cell from the SkyWater SKY130 High-Density library. The generated netlist provides a structural representation of the implementation, including the AND gate, buffers, and signal interconnections.
+
+
 
 ## 2. Sequential Logic Optimization
 
