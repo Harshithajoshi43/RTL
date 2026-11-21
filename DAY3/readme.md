@@ -667,6 +667,460 @@ endmodule
 ```
 
 ---
+# dff_const3
+### Sequential Constant Optimization with Yosys: `dff_const3`
+
+This repository demonstrates how **Yosys** synthesizes two cascaded D flip-flops with mismatched reset and steady-state values, preserving both sequential elements and mapping them to reset-type and set-type standard cells in the **SkyWater 130nm (`sky130`)** library.
+
+---
+
+### Verilog RTL Code
+
+```verilog
+module dff_const3 (
+  input      clk,
+  input      reset,
+  output reg q
+);
+  reg q1;
+
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+    begin
+      q  <= 1'b1;
+      q1 <= 1'b0;
+    end
+    else
+    begin
+      q1 <= 1'b1;
+      q  <= q1;
+    end
+  end
+endmodule
+```
+
+### How It Works
+The design implements a 2-stage shift register (`1'b1 -> q1 -> q`) with an asynchronous active-high `reset`:
+* **During Reset (`reset = 1`):** `q1` is asynchronously cleared to `1'b0`, while `q` is asynchronously preset to `1'b1`.
+* **First Clock Edge After Reset (`reset = 0`):** Because non-blocking assignments (`<=`) sample old values before updating:
+  * `q1` captures `1'b1`.
+  * `q` captures the *previous* value of `q1`, which was `1'b0` during reset. As a result, `q` drops to `0` for exactly one clock cycle.
+* **Second Clock Edge After Reset:**
+  * `q1` remains `1'b1`.
+  * `q` captures the updated value of `q1` (`1'b1`), returning to `1` and staying `1` until `reset` is asserted again.
+
+Because `q` exhibits a single-cycle `1 -> 0 -> 1` pulse after `reset` de-asserts, **neither flip-flop can be optimized away**.
+
+---
+
+### Testbench (`tb_dff_const3.v`)
+
+```verilog
+`timescale 1ns / 1ps
+
+module tb_dff_const3;
+  // Inputs
+  reg clk, reset;
+
+  // Output
+  wire q;
+
+  // Instantiate the Unit Under Test (UUT)
+  dff_const3 uut (
+    .clk(clk),
+    .reset(reset),
+    .q(q)
+  );
+
+  initial begin
+    \$dumpfile("tb_dff_const3.vcd");
+    \$dumpvars(0, tb_dff_const3);
+    // Initialize Inputs
+    clk   = 0;
+    reset = 1;
+    #3000 \$finish;
+  end
+
+  always #10 clk     = ~clk;
+  always #1547 reset = ~reset;
+endmodule
+```
+
+### Testbench Line-by-Line Breakdown
+* `` `timescale 1ns / 1ps ``: Sets the simulation time unit to `1 ns` and time precision to `1 ps`.
+* **`reg clk, reset;` & `wire q;`**: `reg` types drive stimulus into the module's inputs, while `wire` monitors the module's output.
+* **`dff_const3 uut (...)`**: Instantiates the Unit Under Test (`dff_const3`) and connects testbench signals to the module ports.
+* **`$dumpfile` & `$dumpvars`**: Creates `tb_dff_const3.vcd` and records all signal transitions across all hierarchy levels (`0`), including the internal register `q1`, for viewing in GTKWave.
+* **`clk = 0; reset = 1;`**: Starts the simulation with the clock low and asynchronous reset asserted.
+* **`#3000 $finish;`**: Ends the simulation after `3000 ns` (`3 us`).
+* **`always #10 clk = ~clk;`**: Toggles `clk` every `10 ns`, generating a square-wave clock with a **`20 ns` period** (`50 MHz`). Rising edges occur at `10 ns, 30 ns, 50 ns, ..., 1530 ns, 1550 ns, 1570 ns`.
+* **`always #1547 reset = ~reset;`**: Toggles `reset` every `1547 ns` (deliberately chosen as an odd delay so reset de-assertion does not align with a `10 ns` clock edge).
+
+---
+
+### How the RTL Design and Testbench Work Together
+
+Tracing the exact interaction between `tb_dff_const3` and `dff_const3` explains every transition visible in the GTKWave waveform:
+
+1. **`t = 0 ns` to `1547 ns` (`reset = 1`):**
+   * The testbench holds `reset` high.
+   * Inside `dff_const3`, the `if (reset)` branch dominates regardless of the `20 ns` clock ticks, holding `q1 = 0` and `q = 1`.
+2. **`t = 1547 ns` (`reset` falls `1 -> 0`):**
+   * The testbench de-asserts `reset` mid-cycle (between the `1530 ns` and `1550 ns` rising clock edges).
+   * Because `dff_const3` is edge-triggered on `posedge clk`, nothing changes yet: `q1` stays `0` and `q` stays `1` from `1547 ns` to `1550 ns`.
+3. **`t = 1550 ns` (First `posedge clk` after reset release):**
+   * Both flip-flops sample their inputs simultaneously:
+     * `q1 <= 1'b1` (jumps from `0 -> 1`).
+     * `q <= q1` (samples `q1`'s pre-clock value of `0`, so `q` drops from `1 -> 0`).
+4. **`t = 1570 ns` (Second `posedge clk` after reset release):**
+   * On the next rising edge `20 ns` later:
+     * `q1 <= 1'b1` (stays `1`).
+     * `q <= q1` (samples `q1`'s updated value of `1`, so `q` rises back from `0 -> 1`).
+
+---
+
+### RTL Simulation Waveform (`GTKWave`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/f9869d6d-84d3-4df9-a5ad-f7875464fbba" />
+
+
+### Waveform Highlights
+* **Marker at `1547 ns`:** Shows `reset` transitioning from `1` to `0` just before the `1550 ns` rising clock edge.
+* **Single-Cycle Low Glitch on `q` (`1550 ns` to `1570 ns`):** Clearly shows `q1` rising to `1` at `1550 ns` while `q` drops to `0` for one full `20 ns` clock period before returning to `1` at `1570 ns`.
+
+---
+
+### Synthesized Netlist (`sky130`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/24d9ece7-153c-487c-97e8-c1233f1528a0" />
+
+
+### Netlist & Schematic Breakdown
+* **Two Distinct Flip-Flop Cells Preserved:**
+  * **Stage 1 (`$82` -> `q1`):** Mapped to `sky130_fd_sc_hd__dfrtp_1` (positive-edge D flip-flop with active-low asynchronous **reset** `RESET_B`), because `q1` resets to `1'b0`. Its `D` pin is tied to `1'1`.
+  * **Stage 2 (`$81` -> `q`):** Mapped to `sky130_fd_sc_hd__dfstp_2` (positive-edge D flip-flop with active-low asynchronous **set** `SET_B`), because `q` presets to `1'b1` during reset. Its `D` pin receives `q1`.
+* **Reset Polarity Inverters (`$90` & `$89`):** Because the Verilog RTL uses an active-high `reset`, while the `sky130` flip-flops require active-low `RESET_B` and `SET_B` pins, Yosys inserts `sky130_fd_sc_hd__clkinv_1` inverters on the reset paths.
+* **Shared Clock Network:** Port `clk` drives the `CLK` pins of both `$82` and `$81` simultaneously.
+
+# dff_const4
+## Sequential Constant Optimization with Yosys: `dff_const4`
+
+This repository demonstrates how **Yosys** performs sequential constant propagation across cascaded D flip-flops when both registers reset to `1'b1` and are driven by `1'b1`, completely eliminating both flip-flops and tying the output permanently high in the **SkyWater 130nm (`sky130`)** flow.
+
+---
+
+### Verilog RTL Code
+
+```verilog
+module dff_const4 (
+  input      clk,
+  input      reset,
+  output reg q
+);
+  reg q1;
+
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+    begin
+      q  <= 1'b1;
+      q1 <= 1'b1;
+    end
+    else
+    begin
+      q1 <= 1'b1;
+      q  <= q1;
+    end
+  end
+endmodule
+```
+
+### How It Works
+The design describes a 2-stage shift register (`1'b1 -> q1 -> q`) where every reset and clocked assignment resolves to `1'b1`:
+* **During Reset (`reset = 1`):** Both `q` and `q1` are asynchronously set to `1'b1`.
+* **After Reset (`reset = 0`):** On every rising edge of `clk`:
+  * `q1` captures `1'b1` (remaining `1`).
+  * `q` captures `q1` (which was already `1` during reset and stays `1` forever).
+
+Unlike `dff_const3` (where `q1` reset to `0`, causing a 1-cycle low pulse on `q`), **neither `q1` nor `q` ever leaves the `1'b1` state**.
+
+---
+
+### Testbench (`tb_dff_const4.v`)
+
+```verilog
+`timescale 1ns / 1ps
+
+module tb_dff_const4;
+  // Inputs
+  reg clk, reset;
+
+  // Output
+  wire q;
+
+  // Instantiate the Unit Under Test (UUT)
+  dff_const4 uut (
+    .clk(clk),
+    .reset(reset),
+    .q(q)
+  );
+
+  initial begin
+    \$dumpfile("tb_dff_const4.vcd");
+    \$dumpvars(0, tb_dff_const4);
+    // Initialize Inputs
+    clk   = 0;
+    reset = 1;
+    #3000 \$finish;
+  end
+
+  always #10 clk     = ~clk;
+  always #1547 reset = ~reset;
+endmodule
+```
+
+### Testbench Line-by-Line Breakdown
+* `` `timescale 1ns / 1ps ``: Sets the simulation time unit to `1 ns` and resolution to `1 ps`.
+* **`reg clk, reset;` & `wire q;`**: `reg` variables drive stimulus into the module inputs, while `wire` monitors the module output.
+* **`dff_const4 uut (...)`**: Instantiates `dff_const4` as the Unit Under Test (`uut`) and maps the testbench signals to its ports.
+* **`$dumpfile` & `$dumpvars`**: Dumps all signal changes across all hierarchy levels (`0`), including internal register `q1`, into `tb_dff_const4.vcd` for GTKWave visualization.
+* **`clk = 0; reset = 1;`**: Initializes the simulation with `clk` at `0` and asynchronous `reset` active (`1`).
+* **`#3000 $finish;`**: Stops the simulation at `3000 ns` (`3 us`).
+* **`always #10 clk = ~clk;`**: Inverts `clk` every `10 ns`, producing a `20 ns` clock period (`50 MHz`) with rising edges at `10 ns, 30 ns, ..., 1530 ns, 1550 ns, 1570 ns`.
+* **`always #1547 reset = ~reset;`**: Toggles `reset` every `1547 ns` so reset release falls asynchronously between clock edges.
+
+---
+
+### How the RTL Design and Testbench Work Together
+
+1. **`t = 0 ns` to `1547 ns` (`reset = 1`):**
+   * The testbench asserts `reset = 1`.
+   * Inside `dff_const4`, the `if (reset)` block executes and sets both `q1 = 1` and `q = 1`.
+2. **`t = 1547 ns` (`reset` drops `1 -> 0`):**
+   * The testbench de-asserts `reset` between the `1530 ns` and `1550 ns` rising clock edges.
+   * Both `q1` and `q` remain `1`.
+3. **`t = 1550 ns` and Beyond (Subsequent `posedge clk` ticks):**
+   * At `1550 ns` (and every `20 ns` thereafter), `q1` samples `1'b1` and `q` samples `q1` (`1'b1`).
+   * Because both registers are already `1`, no signal transition occurs at `1550 ns`, `1570 ns`, or anywhere else in the simulation.
+
+---
+
+## RTL Simulation Waveform (`GTKWave`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/20da3f56-b05b-41a0-bfc7-169efe3ec24b" />
+
+
+
+### Waveform Highlights
+* **Flat High Signals (`q = 1`, `q1 = 1`):** Both `q` and internal register `q1` remain steady at logic `1` across the entire timeline.
+* **Marker at `1547 ns`:** Confirms that when `reset` falls from `1` to `0` prior to the `1550 ns` clock edge, neither `q1` nor `q` glitches or changes state.
+
+---
+
+## Synthesized Netlist (`sky130`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/eb41517c-be6c-4fc0-b3bb-2bbdb6d9157d" />
+
+
+### Netlist & Schematic Breakdown
+* **Both Flip-Flops Eliminated (`0` Sequential Cells):** During synthesis optimization (`opt`), Yosys detects that `q1` is permanently `1'b1` (its reset value `1'b1` matches its data input `1'b1`). Once `q1` is reduced to a constant `1'b1`, the second flip-flop (`q`) also has identical reset (`1'b1`) and data (`1'b1`) values, so Yosys deletes **both** flip-flops.
+* **Constant Logic Tie-High (`1'1 -> q` and `1'1 -> q1`):**
+  * Output port `q` is driven directly by a constant `1'1` through a `BUF` pseudo-cell.
+  * Internal wire `q1` (shown as a diamond node) is also tied directly to `1'1` through a `BUF` pseudo-cell.
+* **Disconnected Inputs (`clk` and `reset`):** Because no sequential cells remain in the design, ports `clk` and `reset` are completely unconnected floating octagons in the schematic.
+
+# dff_const5
+## Sequential Constant Optimization with Yosys: `dff_const5`
+
+This repository demonstrates how **Yosys** synthesizes a 2-stage shift register (`1'b1 -> q1 -> q`) when both flip-flops reset to `1'b0` and shift in a constant `1'b1`, preserving both sequential elements to maintain the exact two-clock-cycle propagation delay after reset release.
+
+---
+
+### Verilog RTL Code
+
+```verilog
+module dff_const5 (
+  input      clk,
+  input      reset,
+  output reg q
+);
+  reg q1;
+
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+    begin
+      q  <= 1'b0;
+      q1 <= 1'b0;
+    end
+    else
+    begin
+      q1 <= 1'b1;
+      q  <= q1;
+    end
+  end
+endmodule
+```
+
+### How It Works
+The design implements a 2-stage shift register (`1'b1 -> q1 -> q`) with an asynchronous active-high `reset`:
+* **During Reset (`reset = 1`):** Both `q1` and `q` are asynchronously cleared to `1'b0`.
+* **First Clock Edge After Reset (`reset = 0`):** Because non-blocking assignments (`<=`) evaluate right-hand values before updating:
+  * `q1` captures `1'b1` (transitioning `0 -> 1`).
+  * `q` captures the *previous* value of `q1` (`1'b0`), remaining `0` for one full clock cycle.
+* **Second Clock Edge After Reset:**
+  * `q1` stays `1'b1`.
+  * `q` captures the updated value of `q1` (`1'b1`), finally transitioning `0 -> 1` two clock edges after reset de-asserts.
+
+Because `q` is delayed by two rising clock edges relative to reset release, **neither flip-flop can be eliminated**.
+
+---
+
+### Testbench (`tb_dff_const5.v`)
+
+```verilog
+`timescale 1ns / 1ps
+
+module tb_dff_const5;
+  // Inputs
+  reg clk, reset;
+
+  // Output
+  wire q;
+
+  // Instantiate the Unit Under Test (UUT)
+  dff_const5 uut (
+    .clk(clk),
+    .reset(reset),
+    .q(q)
+  );
+
+  initial begin
+    \$dumpfile("tb_dff_const5.vcd");
+    \$dumpvars(0, tb_dff_const5);
+    // Initialize Inputs
+    clk   = 0;
+    reset = 1;
+    #3000 \$finish;
+  end
+
+  always #10 clk     = ~clk;
+  always #1547 reset = ~reset;
+endmodule
+```
+
+### Testbench Line-by-Line Breakdown
+* `` `timescale 1ns / 1ps ``: Defines `1 ns` as the simulation time unit and `1 ps` as the timing precision.
+* **`reg clk, reset;` & `wire q;`**: `reg` types drive stimulus into the inputs, while `wire` monitors the output.
+* **`dff_const5 uut (...)`**: Instantiates `dff_const5` as the Unit Under Test (`uut`) and maps testbench signals to the module ports.
+* **`$dumpfile` & `$dumpvars`**: Creates `tb_dff_const5.vcd` and records all signal transitions across all hierarchy levels (`0`), including internal register `q1`, for GTKWave inspection.
+* **`clk = 0; reset = 1;`**: Starts the simulation with `clk` low and asynchronous `reset` asserted (`1`).
+* **`#3000 $finish;`**: Terminates the simulation after `3000 ns` (`3 us`).
+* **`always #10 clk = ~clk;`**: Toggles `clk` every `10 ns`, creating a `20 ns` clock period (`50 MHz`) with rising edges at `10 ns, 30 ns, ..., 1530 ns, 1550 ns, 1570 ns`.
+* **`always #1547 reset = ~reset;`**: Toggles `reset` every `1547 ns` so reset de-assertion occurs asynchronously between rising clock edges.
+
+---
+
+### How the RTL Design and Testbench Work Together
+
+Tracing the interaction between `tb_dff_const5` and `dff_const5` explains the two-stage delayed rise seen in GTKWave:
+
+1. **`t = 0 ns` to `1547 ns` (`reset = 1`):**
+   * The testbench holds `reset` high.
+   * Inside `dff_const5`, `if (reset)` overrides the clock, holding both `q1 = 0` and `q = 0`.
+2. **`t = 1547 ns` (`reset` falls `1 -> 0`):**
+   * The testbench de-asserts `reset` between the `1530 ns` and `1550 ns` rising clock edges.
+   * Because the flip-flops only sample on `posedge clk`, both `q1` and `q` stay `0` from `1547 ns` to `1550 ns`.
+3. **`t = 1550 ns` (First `posedge clk` after reset release):**
+   * `q1 <= 1'b1` (`q1` jumps from `0 -> 1`).
+   * `q <= q1` (`q` samples `q1`'s old value of `0`, so `q` stays `0`).
+4. **`t = 1570 ns` (Second `posedge clk` after reset release):**
+   * `q1 <= 1'b1` (`q1` stays `1`).
+   * `q <= q1` (`q` samples `q1`'s new value of `1`, so `q` jumps from `0 -> 1` exactly one clock period after `q1`).
+
+---
+
+### RTL Simulation Waveform (`GTKWave`)
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/aec00ad0-a618-4c99-9d24-088e06882615" />
+
+
+### Waveform Highlights
+* **Marker at `1547 ns`:** Marks `reset` dropping from `1` to `0` prior to the `1550 ns` rising clock edge.
+* **Staggered Rising Transitions (`1550 ns` and `1570 ns`):** `q1` transitions `0 -> 1` on the first rising edge at `1550 ns`, and `q` transitions `0 -> 1` one full `20 ns` clock cycle later at `1570 ns`.
+
+---
+
+### Synthesized Netlist (Generic Yosys Cells)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/85b6f4ca-ad5b-4296-b708-ad268fb485c9" />
+
+
+### Netlist & Schematic Breakdown
+* **Two Generic Flip-Flop Cells Preserved (`$_DFF_PP0_`):**
+  * Notice that `show` was executed right after `synth` (before `dfflibmap` technology mapping to `sky130`), so Yosys displays its internal generic flip-flop primitive `$_DFF_PP0_` (**P**ositive-edge `C`, **P**ositive/active-high asynchronous reset `R`, resetting to **`0`**).
+  * **Stage 1 (`$82` -> `q1`):** Receives `1'1` on `D`, `clk` on `C`, and `reset` on `R`, driving internal net `q1`.
+  * **Stage 2 (`$81` -> `q`):** Receives `q1` on `D`, `clk` on `C`, and `reset` on `R`, driving output port `q`.
+* **Technology Mapping Note (`sky130`):** When `dfflibmap -liberty sky130_fd_sc_hd__tt_025C_1v80.lib` is run, each `$_DFF_PP0_` maps to `sky130_fd_sc_hd__dfrtp_1` alongside a `sky130_fd_sc_hd__clkinv_1` inverter on `reset` to convert active-high `reset` into active-low `RESET_B`.
+
+
+### Sequential Constant Optimization with Yosys (`dff_const1` – `dff_const5`)
+
+This repository explores how **Yosys** analyzes sequential logic (D flip-flops) with constant data inputs and asynchronous resets, demonstrating the exact conditions under which flip-flops are **preserved** versus **optimized away** during synthesis.
+
+---
+
+### Summary Comparison: When Does Yosys Keep vs. Delete Flip-Flops?
+
+**Core Rule:** Yosys deletes a flip-flop **only when its reset state and its clocked steady-state are identical** (meaning the output `q` never changes value under any sequence of `reset` or `clk` events). If `q` changes state even for a single clock cycle, Yosys preserves the required flip-flop(s).
+
+| Module | Stages | Reset State (`reset = 1`) | Clocked Behavior (`reset = 0`) | Waveform Behavior of `q` | Flip-Flops Kept | Synthesized Hardware (`sky130` / Generic) | Why? |
+| :--- | :---: | :--- | :--- | :--- | :---: | :--- | :--- |
+| **`dff_const1`** | 1 | `q <= 0` | `q <= 1` | `0` during reset $\rightarrow$ jumps to `1` on 1st `posedge clk` | **1** | `1x dfrtp_1` + `1x clkinv_1` | Output transitions `0 -> 1`; state memory is required. |
+| **`dff_const2`** | 1 | `q <= 1` | `q <= 1` | Constant `1` forever (never changes) | **0** | Constant `1'b1` (`BUF` to `q`) | Reset value (`1`) equals clocked value (`1`); flip-flop is redundant. |
+| **`dff_const3`** | 2 | `q1 <= 0`<br>`q  <= 1` | `q1 <= 1`<br>`q  <= q1` | `1` during reset $\rightarrow$ drops to `0` on 1st `posedge clk` $\rightarrow$ returns to `1` on 2nd `posedge clk` | **2** | `1x dfrtp_1` (`q1`) + `1x dfstp_2` (`q`) + `2x clkinv_1` | `q` produces a 1-cycle low pulse (`1 -> 0 -> 1`) after reset release. |
+| **`dff_const4`** | 2 | `q1 <= 1`<br>`q  <= 1` | `q1 <= 1`<br>`q  <= q1` | Constant `1` forever (`q1` and `q` never change) | **0** | Constant `1'b1` (`BUF` to `q` and `q1`) | `q1` is constant `1`, which makes `q` constant `1`; both flip-flops are deleted. |
+| **`dff_const5`** | 2 | `q1 <= 0`<br>`q  <= 0` | `q1 <= 1`<br>`q  <= q1` | `0` during reset $\rightarrow$ `q1` rises on 1st `posedge clk` $\rightarrow$ `q` rises on 2nd `posedge clk` | **2** | `2x $_DFF_PP0_` (or `2x dfrtp_1` + inverters) | Both flip-flops are needed to create the 2-clock-cycle delay (`0 -> 0 -> 1`). |
+
+---
+
+## Module-by-Module Breakdown
+
+### 1. `dff_const1` (1 Flip-Flop Kept)
+* **RTL Logic:** Asynchronous reset sets `q <= 0`; clocked branch sets `q <= 1`.
+* **Synthesis Result:** Yosys keeps the flip-flop (`sky130_fd_sc_hd__dfrtp_1`) with `D = 1'b1` and adds an inverter (`sky130_fd_sc_hd__clkinv_1`) to convert active-high `reset` into active-low `RESET_B`.
+* **Takeaway:** A constant `D` input does **not** automatically delete a flip-flop if the reset state differs from `D`.
+
+### 2. `dff_const2` (0 Flip-Flops Kept)
+* **RTL Logic:** Asynchronous reset sets `q <= 1`; clocked branch also sets `q <= 1`.
+* **Synthesis Result:** The flip-flop is completely eliminated, and `q` is tied directly to `1'b1`. Both `clk` and `reset` become unconnected ports.
+* **Takeaway:** When reset and clocked assignments always resolve to the same constant, sequential logic collapses into a static wire.
+
+### 3. `dff_const3` (2 Flip-Flops Kept — Mixed Set/Reset)
+* **RTL Logic:** Reset sets `q1 <= 0` and `q <= 1`; clocked branch shifts `1'b1 -> q1 -> q`.
+* **Synthesis Result:** Yosys maps `q1` to an active-low reset flip-flop (`dfrtp_1`) and `q` to an active-low set flip-flop (`dfstp_2`).
+* **Takeaway:** Even though `q` starts at `1` and ends at `1`, it dips to `0` for one clock cycle after reset release (`1550 ns` to `1570 ns`), forcing Yosys to preserve both stages.
+
+### 4. `dff_const4` (0 Flip-Flops Kept — Cascaded Constant Propagation)
+* **RTL Logic:** Reset sets `q1 <= 1` and `q <= 1`; clocked branch shifts `1'b1 -> q1 -> q`.
+* **Synthesis Result:** Yosys first optimizes `q1` to a constant `1'b1` (identical to `dff_const2`), then propagates that constant into the second stage, eliminating `q`'s flip-flop as well.
+* **Takeaway:** Constant optimization propagates stage-by-stage through shift registers until all redundant sequential elements are removed.
+
+### 5. `dff_const5` (2 Flip-Flops Kept — 2-Cycle Shift Delay)
+* **RTL Logic:** Reset sets `q1 <= 0` and `q <= 0`; clocked branch shifts `1'b1 -> q1 -> q`.
+* **Synthesis Result:** Both flip-flops are preserved (`$_DFF_PP0_` post-`synth`, or `dfrtp_1` post-`dfflibmap`).
+* **Takeaway:** Both registers are required so `q` waits two rising clock edges (`1550 ns` and `1570 ns`) after reset release (`1547 ns`) before transitioning from `0` to `1`.
+
+---
+
+### Common Testbench Setup (`tb_dff_const1` – `tb_dff_const5`)
+
+All five modules are verified using the same asynchronous stimulus pattern:
+* **Clock (`clk`):** `always #10 clk = ~clk;` generates a `20 ns` period (`50 MHz`) clock with rising edges at `10 ns, 30 ns, ..., 1530 ns, 1550 ns, 1570 ns`.
+* **Asynchronous Reset (`reset`):** Initialized to `1` and toggled via `always #1547 reset = ~reset;`. Using `1547 ns` ensures reset de-asserts asynchronously mid-cycle (`3 ns` before the `1550 ns` rising clock edge), clearly separating asynchronous reset behavior from synchronous clock-edge sampling in GTKWave.
+
+---
+
 
 
 
