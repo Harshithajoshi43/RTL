@@ -436,15 +436,118 @@ $$y = (b \cdot c \cdot d) \cdot (a \cdot 0) = 0$$
   * `U4` combines `n3` and `n1` to drive the primary output port `y`.
 * **What Happens After `flatten`:** If `flatten` and `opt` are run, Yosys collapses all four sub-modules, recognizes that `y = 0`, and ties output port `y` directly to a constant logic `1'b0` (`sky130_fd_sc_hd__conb_1` `LO` pin), eliminating every gate and input dependency.
 
+### Flattened Netlist Optimization (`flatten`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/b8582fd0-047f-47af-8ad0-78b999eb49c2" />
 
 
-
+### Post-Flattening Netlist Breakdown
+* **100% Gate Elimination (`0` Standard Cells):** Once `flatten` dissolves the `sub_module` boundaries, Yosys propagates the constant `1'b0` from `U1` (`a & 1'b0 = 0`) into `U4` (`n3 & 0 = 0`). Because `y` is permanently `0`, **every single logic gate (`U1`, `U2`, `U3`, `U4`) is deleted**.
+* **Constant Output Driver (`1'0 -> y`):** Look at the very top row of the schematic—a constant **`1'0`** feeds directly through `BUF` pseudo-cells and wire label `U4.y` straight into output port **`y`**.
+* **Disconnected Primary Inputs (`a`, `b`, `c`, `d`):** Because `y` is always `0` regardless of input values, none of the four input ports (`a`, `b`, `c`, `d`) connect to any logic; they terminate at dangling internal wire labels (`$a`, `$b`, `$c`, `$d`, `U1.a`, `U2.a`, `U2.b`, `U3.b`).
+* **Dangling Internal Nets (`n1`, `n2`, `n3`):** The intermediate wires (`U1.y -> n1 -> U4.b`, `U2.y -> n2 -> U3.a`, `U3.y -> n3 -> U4.a`) remain only as disconnected wire aliases from the flattened hierarchy because `opt_clean -purge` was not run.
 
 ## 2. Sequential Logic Optimization
 
 Sequential logic optimization improves circuits containing flip-flops and registers, where the output depends on both current inputs and previously stored states.
 
 It focuses on optimizing state representation, register placement, timing, and the overall structure of sequential circuits.
+
+
+. What is a Flip-Flop?
+
+All the earlier modules you ran (opt_check2, opt_check3, multiple_module_opt) were combinational logic—they have no memory. If you change an input, the output changes right away.
+A flip-flop is sequential logic—it acts like a tiny, 1-bit storage box:
+• It holds onto a single bit (0 or 1) and keeps outputting that value (Q) even after the input changes.
+• Computers use millions of flip-flops together to build CPU registers, counters, and state machines.
+
+
+What is a D Flip-Flop?
+
+"D" stands for Data (or Delay). Think of a D flip-flop like a camera taking a snapshot:
+• D (Data input): What is currently in front of the camera lens (0 or 1).
+• CLK (Clock input): The shutter button. Specifically, a positive-edge (posedge) D flip-flop only takes a photo at the exact split-second the clock signal jumps from 0 to 1 (the rising edge).
+• Q (Output): The printed photo on your screen. Between clock ticks, Q stays frozen on the last photo taken, ignoring any changes on D.
+• RESET (Reset pin): A "wipe memory" button. In your code (always @(posedge clk, posedge reset)), it is asynchronous, meaning the instant reset jumps to 1, Q is immediately forced to 0 without waiting for a clock tick.
+
+### Verilog RTL Code
+
+```verilog
+module dff_const1 (
+  input      clk,
+  input      reset,
+  output reg q
+);
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+      q <= 1'b0;
+    else
+      q <= 1'b1;
+  end
+endmodule
+```
+
+### How It Works
+The `always` block describes a positive-edge-triggered D flip-flop with an asynchronous active-high reset:
+* **When `reset = 1` (Asynchronous Reset):** Regardless of `clk`, output `q` is immediately cleared to `1'b0`.
+* **When `reset = 0` (Normal Operation):** On the rising edge of `clk`, output `q` latches the constant value `1'b1`.
+
+---
+## RTL Simulation Waveform (`GTKWave`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/820edf9a-fe1d-4655-8eee-211642740cda" />
+
+
+### Waveform Breakdown
+* **Reset Asserted (`reset = 1`):** Whenever `reset` goes high (for example, around `1550 ns`), `q` immediately drops to `0` asynchronously.
+* **Reset De-asserted (`reset = 0`):** Once `reset` returns to `0`, `q` stays `0` until the very next rising edge of `clk`, at which point `q` transitions to `1` and stays `1` until `reset` is asserted again.
+
+---
+## Synthesized Netlist (`sky130`)
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/896b1e2a-4a18-439f-b8b7-4c4b5adcb6af" />
+
+
+### Netlist & Schematic Breakdown
+* **Why the Flip-Flop Is NOT Removed:** Even though the data input `D` is tied to a constant `1'b1`, `q` is **not** a constant `1` because `reset` dynamically forces `q` to `0` and requires a clock edge to recover back to `1`. Therefore, sequential state storage is required.
+* **Flip-Flop Cell (`$80`):** Mapped to `sky130_fd_sc_hd__dfrtp_1` (positive-edge-triggered D flip-flop with an asynchronous **active-low** reset `RESET_B`).
+* **Reset Polarity Inversion (`$85`):** Because the Verilog RTL uses an **active-high** `reset` (`if (reset)`), while the `sky130` cell expects an **active-low** `RESET_B`, Yosys automatically inserts an inverter (`sky130_fd_sc_hd__clkinv_1`) between port `reset` and pin `RESET_B`.
+* **Pin Mapping:**
+  * Port `clk` -> Pin `CLK`
+  * Constant `1'1` -> Pin `D`
+  * Port `reset` -> Inverter (`sky130_fd_sc_hd__clkinv_1`) -> Pin `RESET_B`
+  * Pin `Q` -> Output port `q`
+## Testbench (`tb_dff_const1.v`)
+
+```verilog
+`timescale 1ns / 1ps
+
+module tb_dff_const1;
+  reg  clk, reset;
+  wire q;
+
+  dff_const1 uut (
+    .clk(clk),
+    .reset(reset),
+    .q(q)
+  );
+
+  initial begin
+    \$dumpfile("tb_dff_const1.vcd");
+    \$dumpvars(0, tb_dff_const1);
+    clk   = 0;
+    reset = 1;
+    #3000 \$finish;
+  end
+
+  always #10 clk     = ~clk;
+  always #1547 reset = ~reset;
+endmodule
+```
+
+### Key Timing Observations
+* **Asynchronous Reset (`t = 0 ns` to `1547 ns`):** While `reset = 1`, `q` is held at `0` regardless of `clk` edges.
+* **Synchronous Recovery (`t = 1547 ns` to `1550 ns`):** When `reset` de-asserts (`1 -> 0`) at `1547 ns`, `q` remains `0` until the next rising edge of `clk` at `1550 ns`, demonstrating why Yosys cannot optimize away the flip-flop.
 
 ### 2.1 State Optimization
 
