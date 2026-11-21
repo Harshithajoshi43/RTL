@@ -85,7 +85,8 @@ The opt_clean -purge command removes unused wires and cells, including certain u
 
 RTL Design
 Verilog Code :
-```module opt_check (
+```
+module opt_check (
     input a,
     input b,
     output y
@@ -93,7 +94,8 @@ Verilog Code :
 
    assign y = a ? b : 0;
 
-endmodule```
+endmodule
+```
 
 Description
 
