@@ -181,6 +181,8 @@ $$y = a + b$$
 
 ---
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/01c3a3ff-859e-4213-ae93-acaa26933a62" />
+
+
 ## opt_check3
 # Logic Optimization with Yosys: `opt_check3`
 
