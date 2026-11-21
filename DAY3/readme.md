@@ -62,12 +62,24 @@ This can reduce hardware complexity by sharing common logic.
 This is a small example of combinational logic optimization, and the image you shared is a synthesis-generated gate-level netlist (or synthesized logic view) showing how Yosys mapped your Verilog into a standard-cell gate.
 The objective is to understand how a behavioral Verilog description is translated into a gate-level implementation and how synthesis tools optimize logic while preserving the original functionality.
 
-```read_liberty -lib ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
-```read_verilog opt_check.v```
-```synth -top opt_check```
-```opt_clean -purge```
-```abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
-```show```
+```
+read_liberty -lib ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+```
+```
+read_verilog opt_check.v
+```
+```
+synth -top opt_check
+```
+```
+opt_clean -purge
+```
+```
+abc -liberty ../lib/sky130_fd_sc_hd__tt_025C_1v80.lib```
+```
+```
+show
+```
 The opt_clean -purge command removes unused wires and cells, including certain unused internal signals and objects.
 
 
