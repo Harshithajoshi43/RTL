@@ -504,6 +504,27 @@ The `always` block describes a positive-edge-triggered D flip-flop with an async
 * **Reset De-asserted (`reset = 0`):** Once `reset` returns to `0`, `q` stays `0` until the very next rising edge of `clk`, at which point `q` transitions to `1` and stays `1` until `reset` is asserted again.
 
 ---
+
+## Yosys Synthesis Flow
+
+To reproduce this synthesis and view the schematic:
+
+```tcl
+# Read Verilog design
+read_verilog dff_const1.v
+
+# Synthesize design
+synth -top dff_const1
+
+# Map flip-flops and combinational logic to SkyWater 130nm library
+dfflibmap -liberty sky130_fd_sc_hd__tt_025C_1v80.lib
+abc -liberty sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# Clean up and display schematic
+clean
+show
+```
+
 ## Synthesized Netlist (`sky130`)
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/896b1e2a-4a18-439f-b8b7-4c4b5adcb6af" />
 
@@ -548,6 +569,118 @@ endmodule
 ### Key Timing Observations
 * **Asynchronous Reset (`t = 0 ns` to `1547 ns`):** While `reset = 1`, `q` is held at `0` regardless of `clk` edges.
 * **Synchronous Recovery (`t = 1547 ns` to `1550 ns`):** When `reset` de-asserts (`1 -> 0`) at `1547 ns`, `q` remains `0` until the next rising edge of `clk` at `1550 ns`, demonstrating why Yosys cannot optimize away the flip-flop.
+
+  
+# dff_const2
+# Sequential Constant Optimization with Yosys: `dff_const2`
+
+This repository demonstrates how **Yosys** completely eliminates a D flip-flop when both its asynchronous reset state and its normal clocked data state evaluate to the same constant (`1'b1`), tying the output directly to logic high in the **SkyWater 130nm (`sky130`)** flow.
+
+---
+
+## Verilog RTL Code
+
+```verilog
+module dff_const2 (
+  input      clk,
+  input      reset,
+  output reg q
+);
+  always @(posedge clk, posedge reset)
+  begin
+    if (reset)
+      q <= 1'b1;
+    else
+      q <= 1'b1;
+  end
+endmodule
+```
+
+### How It Works
+Unlike `dff_const1` (which toggled between `0` during reset and `1` after a clock edge), `dff_const2` assigns `1'b1` in **both** branches:
+* **When `reset = 1`:** `q` is set to `1'b1`.
+* **When `reset = 0`:** On the rising edge of `clk`, `q` is also set to `1'b1`.
+
+Because `q` never changes state under any condition, no memory element (flip-flop) is needed.
+
+---
+
+## Testbench (`tb_dff_const2.v`)
+
+```verilog
+`timescale 1ns / 1ps
+
+module tb_dff_const2;
+  reg  clk, reset;
+  wire q;
+
+  dff_const2 uut (
+    .clk(clk),
+    .reset(reset),
+    .q(q)
+  );
+
+  initial begin
+    \$dumpfile("tb_dff_const2.vcd");
+    \$dumpvars(0, tb_dff_const2);
+    clk   = 0;
+    reset = 1;
+    #3000 \$finish;
+  end
+
+  always #10 clk     = ~clk;
+  always #1547 reset = ~reset;
+endmodule
+```
+
+---
+
+## RTL Simulation Waveform (`GTKWave`)
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/1c96dd7e-e7a5-48e5-9f88-a1d6eff4a1a1" />
+
+
+### Waveform Breakdown
+* **Constant Output (`q = 1`):** From `t = 0 ns` through the entire simulation, `q` remains a flat line at logic `1`.
+* **No Transition on Reset Toggle (`t = 1547 ns`):** Even when `reset` drops from `1` to `0` at `1547 ns` and `clk` continues toggling every `10 ns`, `q` never drops to `0` or changes value.
+
+---
+
+## Synthesized Netlist (`sky130`)
+
+<img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/bb5b35a3-58a1-4123-a4df-6c4c9e2a2223" />
+
+### Netlist & Schematic Breakdown
+* **Flip-Flop Elimination (`0` Sequential Cells):** During synthesis (`opt`), Yosys detects that the flip-flop's reset value (`1'b1`) and data input (`1'b1`) are identical. The flip-flop is completely deleted.
+* **Constant Logic Tie-High (`1'1 -> q`):** Output port `q` is wired directly to a constant logic `1'1` through a `BUF` pseudo-cell.
+* **Disconnected Inputs (`clk` and `reset`):** Because `q` no longer depends on clock edges or reset assertions, both `clk` and `reset` remain unconnected floating ports in the schematic.
+
+### Equivalent Gate-Level Verilog Netlist
+
+```verilog
+module dff_const2(clk, reset, q);
+  input clk;
+  input reset;
+  output q;
+
+  assign q = 1'b1;
+endmodule
+```
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### 2.1 State Optimization
 
