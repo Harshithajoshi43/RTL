@@ -14,3 +14,12 @@
 ## comp_case.v
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/26878f33-7292-416b-a27b-2859e5ec75a4" />
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/54f7826f-1c25-406c-a57d-12b32c4f60e8" />
+
+## partial_case_assign.v
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/5bb109d7-dd98-49da-affd-058f7e03a810" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/3f61216e-9e21-4075-9451-bf2e0a3c6279" />
+
+## bad_case.v
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/26c6a428-bb24-4fb9-afd9-13e9f6c62fec" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/71faaef3-dc46-4972-8920-d186ebf6629b" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/0507900e-617c-4f32-be25-57144ed477a0" />
