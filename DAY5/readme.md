@@ -26,3 +26,13 @@
 
 ## mux_generate.v
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/9f48b4e7-fbc3-40cb-a710-e650ebab5ac8" />
+
+## demux_case.v 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/20b02887-fb8e-49c1-8e3c-afa13c8d5a12" />
+
+## demux_generate.v
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a042b4a9-6201-4402-be09-9a57c7f0edad" />
+
+## Ripple carry adder
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/32f7917a-c1c4-49a0-9e58-8cf86ce7d8d4" />
+
