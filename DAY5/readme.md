@@ -23,3 +23,6 @@
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/26c6a428-bb24-4fb9-afd9-13e9f6c62fec" />
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/71faaef3-dc46-4972-8920-d186ebf6629b" />
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/0507900e-617c-4f32-be25-57144ed477a0" />
+
+## mux_generate.v
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/9f48b4e7-fbc3-40cb-a710-e650ebab5ac8" />
