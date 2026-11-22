@@ -11,3 +11,6 @@
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/6294e465-9f30-4ec2-82ef-1c770ecc3a13" />
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/29c65a83-bf94-4146-972c-078713ad2dba" />
 
+## comp_case.v
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/26878f33-7292-416b-a27b-2859e5ec75a4" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/54f7826f-1c25-406c-a57d-12b32c4f60e8" />
